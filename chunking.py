@@ -1,19 +1,14 @@
-import re
+# chunking.py
 
-def split_by_sentences(text, chunk_size=5):
-    sentences = re.split(r'(?<=[.!?]) +', text)
-
+def split_by_chars(text, chunk_size=1000, overlap=200):
     chunks = []
-    chunk = []
+    start = 0
 
-    for sentence in sentences:
-        chunk.append(sentence)
+    while start < len(text):
+        end = start + chunk_size
+        chunk = text[start:end]
+        chunks.append(chunk)
 
-        if len(chunk) >= chunk_size:
-            chunks.append(" ".join(chunk))
-            chunk = []
-
-    if chunk:
-        chunks.append(" ".join(chunk))
+        start = end - overlap  # overlap helps preserve context
 
     return chunks

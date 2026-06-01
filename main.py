@@ -39,24 +39,25 @@ def upload_pdf(
         file_path
     )
 
-    chunks = chunking.split_by_sentences(text, chunk_size=5)
+    chunks = chunking.split_by_chars(text, chunk_size=1000, overlap=200)
 
+    print("Total chunks:", len(chunks))  # debug (optional)
+
+    # 3. store each chunk
     for chunk in chunks:
 
-    # create embedding
         embedding = get_embedding(chunk)
 
-    # create row
         pdf_chunk = PDFChunk(
             file_name=file.filename,
             chunk_text=chunk,
             embedding=embedding
         )
 
-    # save to database
         db.add(pdf_chunk)
 
     db.commit()
+    db.close()
 
     return {
         "message": "PDF stored successfully",
@@ -79,7 +80,6 @@ def search(query: str):
             .order_by(
                 PDFChunk.embedding.cosine_distance(query_embedding).asc()
             )
-            .limit(3)
             .all()
         )
 
