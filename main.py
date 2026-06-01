@@ -5,6 +5,7 @@ from pdf_utils import extract_text_from_pdf
 from fastapi import FastAPI, UploadFile, File, Request
 from database import Base, engine
 from rag import ask_llm
+import chunking
 import models
 import shutil
 import multipart
@@ -38,23 +39,28 @@ def upload_pdf(
         file_path
     )
 
+    chunks = chunking.split_by_sentences(text, chunk_size=5)
+
+    for chunk in chunks:
+
     # create embedding
-    embedding = get_embedding(text)
+        embedding = get_embedding(chunk)
 
     # create row
-    pdf_chunk = PDFChunk(
-        file_name=file.filename,
-        chunk_text=text,
-        embedding=embedding
-    )
+        pdf_chunk = PDFChunk(
+            file_name=file.filename,
+            chunk_text=chunk,
+            embedding=embedding
+        )
 
     # save to database
-    db.add(pdf_chunk)
+        db.add(pdf_chunk)
 
     db.commit()
 
     return {
-        "message": "PDF stored successfully"
+        "message": "PDF stored successfully",
+        "total_chunks": len(chunks)
     }
 
 @app.get("/search")
@@ -62,46 +68,47 @@ def search(query: str):
 
     db = SessionLocal()
 
-    # Convert question to embedding
-    query_embedding = get_embedding(query)
+    try:
 
-    # Get top 3 most similar documents
-    results = (
-        db.query(PDFChunk)
-        .order_by(
-            PDFChunk.embedding.cosine_distance(query_embedding)
+        # Convert question to embedding
+        query_embedding = get_embedding(query)
+
+        # Get top 3 most similar documents
+        results = (
+            db.query(PDFChunk)
+            .order_by(
+                PDFChunk.embedding.cosine_distance(query_embedding).asc()
+            )
+            .limit(3)
+            .all()
         )
-        .limit(3)
-        .all()
-    )
 
-    if not results:
+        if not results:
+            return {
+                "message": "No matching documents found"
+            }
+
+        # Debug: see what was retrieved
+        # print("\nTop Matches:")
+        # for r in results:
+        #     print(r.file_name)
+
+        # Combine contexts
+        context = "\n\n".join(
+            [
+                f"FILE: {r.file_name}\n{r.chunk_text}"
+                for r in results
+            ]
+        )
+
+        answer = ask_llm(
+            context=context,
+            question=query
+        )
+
         return {
-            "message": "No matching documents found"
+            "answer": answer,
+            "matched_files": list(set([r.file_name for r in results]))
         }
-
-    # Debug: see what was retrieved
-    print("\nTop Matches:")
-    for r in results:
-        print(r.file_name)
-
-    # Combine contexts
-    context = "\n\n".join(
-        [
-            f"FILE: {r.file_name}\n{r.chunk_text}"
-            for r in results
-        ]
-    )
-
-    answer = ask_llm(
-        context=context,
-        question=query
-    )
-
-    return {
-        "answer": answer,
-        "matched_files": [
-            r.file_name
-            for r in results
-        ]
-    }
+    finally:
+        db.close()
