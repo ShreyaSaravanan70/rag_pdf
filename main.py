@@ -1,13 +1,13 @@
 from multiprocessing import context
-
 from database import SessionLocal
-from models import PDFChunk
+from models import PDFChunk, Resume
 from embeddings import get_embedding
 from pdf_utils import extract_text_from_pdf
 from fastapi import FastAPI, UploadFile, File, Request, HTTPException
 from database import Base, engine
+from chunking import split_by_headings
 from sqlalchemy import text
-from rag import ask_llm
+from rag import ask_llm, extract_structured_resume
 import chunking
 import models
 import shutil
@@ -29,44 +29,83 @@ def upload_pdf(
 
     db = SessionLocal()
 
-    file_path = f"uploads/{file.filename}"
+    try:
 
-    with open(file_path, "wb") as buffer:
+        file_path = f"uploads/{file.filename}"
 
-        shutil.copyfileobj(
-            file.file,
-            buffer
+        # Save file
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(
+                file.file,
+                buffer
+            )
+
+        # Extract text
+        text = extract_text_from_pdf(
+            file_path
         )
 
-    # extract text
-    text = extract_text_from_pdf(
-        file_path
-    )
-    
-    chunks = chunking.split_by_chars(text, chunk_size=1000, overlap=200)
+        # Extract structured resume data
+        structured = extract_structured_resume(
+            text
+        )
 
-    print("Total chunks:", len(chunks))  # debug (optional)
-
-    # 3. store each chunk
-    for chunk in chunks:
-
-        embedding = get_embedding(chunk)
-
-        pdf_chunk = PDFChunk(
+        # Save Resume table row
+        resume_obj = Resume(
             file_name=file.filename,
-            chunk_text=chunk,
-            embedding=embedding
+            name=structured.get("name"),
+            skills=structured.get("skills", []),
+            projects=structured.get("projects", []),
+            experience=structured.get("experience", []),
+            hackathons=structured.get("hackathons", []),
+            education=structured.get("education", [])
         )
 
-        db.add(pdf_chunk)
+        db.add(resume_obj)
 
-    db.commit()
-    db.close()
+        # Heading-based chunks
+        chunks = chunking.split_by_headings(text)
 
-    return {
-        "message": "PDF stored successfully",
-        "total_chunks": len(chunks)
-    }
+        print("Total chunks:", len(chunks))
+
+        # Store chunks
+        for chunk in chunks:
+
+            embedding = get_embedding(
+                chunk["content"]
+            )
+
+            pdf_chunk = PDFChunk(
+                file_name=file.filename,
+
+                candidate_name=structured.get(
+                    "name",
+                    ""
+                ),
+
+                section=chunk["section"],
+
+                chunk_text=chunk["content"],
+
+                embedding=embedding
+            )
+
+            db.add(pdf_chunk)
+
+        db.commit()
+
+        return {
+            "message": "PDF stored successfully",
+            "candidate_name": structured.get("name"),
+            "total_chunks": len(chunks)
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise e
+
+    finally:
+        db.close()
 
 # @app.get("/search")
 # def search(query: str):
@@ -153,10 +192,6 @@ def upload_pdf(
 
 #     finally:
 #         db.close()
-from fastapi import HTTPException
-from sqlalchemy import text
-import time
-
 @app.get("/search")
 def search(query: str):
 
@@ -164,115 +199,179 @@ def search(query: str):
 
     try:
 
-        # 1. Generate query embedding
+        query_lower = query.lower()
+
+        # =====================================
+        # SKILL LOOKUP
+        # =====================================
+
+        if query_lower.startswith("who knows"):
+
+            skill = (
+                query_lower
+                .replace("who knows", "")
+                .replace("?", "")
+                .strip()
+            )
+
+            resumes = db.query(Resume).all()
+
+            matching_people = []
+
+            for resume in resumes:
+
+                skills = [
+                    s.lower()
+                    for s in (resume.skills or [])
+                ]
+
+                if any(skill in s for s in skills):
+
+                    matching_people.append(
+                        resume.name
+                    )
+
+            return {
+                "skill": skill,
+                "people": matching_people
+            }
+
+        # =====================================
+        # VECTOR SEARCH
+        # =====================================
+
         start = time.time()
 
         query_embedding = get_embedding(query)
 
-        print("Embedding time:", time.time() - start)
+        print(
+            "Embedding time:",
+            time.time() - start
+        )
 
-        # 2. Hierarchical retrieval
-        start = time.time()
+        # =====================================
+        # FIND PERSON NAME IN QUERY
+        # =====================================
 
-        results = db.execute(
-            text("""
-                WITH chunk_scores AS (
-                    SELECT
-                        file_name,
-                        chunk_text,
-                        embedding <=> CAST(:embedding AS vector) AS distance
-                    FROM pdf_chunks
-                ),
+        resumes = db.query(Resume).all()
 
-                ranked_chunks AS (
-                    SELECT
-                        file_name,
-                        chunk_text,
-                        distance,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY file_name
-                            ORDER BY distance ASC
-                        ) AS rn
-                    FROM chunk_scores
-                ),
+        matched_name = None
 
-                top_files AS (
-                    SELECT
-                        file_name,
-                        MIN(distance) AS best_distance
-                    FROM chunk_scores
-                    GROUP BY file_name
-                    ORDER BY best_distance ASC
-                    LIMIT :limit_docs
+        for resume in resumes:
+
+            if (
+                resume.name
+                and resume.name.lower()
+                in query_lower
+            ):
+                matched_name = resume.name
+                break
+
+        # =====================================
+        # PERSON-SPECIFIC SEARCH
+        # =====================================
+
+        if matched_name:
+
+            print(
+                "Searching only for:",
+                matched_name
+            )
+
+            results = (
+                db.query(PDFChunk)
+                .filter(
+                    PDFChunk.candidate_name
+                    == matched_name
                 )
+                .order_by(
+                    PDFChunk.embedding.cosine_distance(
+                        query_embedding
+                    )
+                )
+                .limit(10)
+                .all()
+            )
 
-                SELECT
-                    rc.file_name,
-                    rc.chunk_text,
-                    rc.distance
-                FROM ranked_chunks rc
-                JOIN top_files tf
-                    ON rc.file_name = tf.file_name
-                WHERE rc.rn <= :top_chunks_per_doc
-                ORDER BY
-                    tf.best_distance ASC,
-                    rc.file_name,
-                    rc.distance ASC
-            """),
-            {
-                "embedding": str(query_embedding),
-                "limit_docs": 5,
-                "top_chunks_per_doc": 3
-            }
-        ).fetchall()
+        # =====================================
+        # GLOBAL SEARCH
+        # =====================================
 
-        print("Search time:", time.time() - start)
+        else:
+
+            results = (
+                db.query(PDFChunk)
+                .order_by(
+                    PDFChunk.embedding.cosine_distance(
+                        query_embedding
+                    )
+                )
+                .limit(10)
+                .all()
+            )
 
         if not results:
+
             return {
-                "message": "No matching documents found"
+                "message":
+                "No matching documents found"
             }
 
-        # 3. Build context
+        # =====================================
+        # BUILD CONTEXT
+        # =====================================
+
         context = "\n\n".join(
             [
-                f"FILE: {row.file_name}\n{row.chunk_text}"
+                f"""
+FILE: {row.file_name}
+
+CANDIDATE: {row.candidate_name}
+
+SECTION: {row.section}
+
+{row.chunk_text}
+"""
                 for row in results
             ]
         )
 
-        # 4. Ask LLM
-        start = time.time()
+        print(
+            "\n===== CONTEXT ====="
+        )
 
-        print("\n===== RETRIEVED CHUNKS =====")
+        print(context)
 
-        for row in results:
-            print("\nFILE:", row.file_name)
-            print(row.chunk_text[:1000])
+        print(
+            "\n===================\n"
+        )
 
-        print("\n============================")
+        # =====================================
+        # LLM
+        # =====================================
 
-        # answer = ask_llm(
-        #     context=context,
-        #     question=query
-        # )
+        answer = ask_llm(
+            context=context,
+            question=query
+        )
+
         return {
-            "context": context,
-            "matched_files": list(set(row.file_name for row in results))
+            "answer": answer,
+            "matched_files": list(
+                set(
+                    row.file_name
+                    for row in results
+                )
+            )
         }
 
-        print("LLM time:", time.time() - start)
-
-        # return {
-        #     "answer": answer,
-        #     "matched_files": list(
-        #         set(row.file_name for row in results)
-        #     )
-        # }
-
     except Exception as e:
+
         import traceback
-        print(traceback.format_exc())
+
+        print(
+            traceback.format_exc()
+        )
 
         raise HTTPException(
             status_code=500,
@@ -280,4 +379,5 @@ def search(query: str):
         )
 
     finally:
+
         db.close()

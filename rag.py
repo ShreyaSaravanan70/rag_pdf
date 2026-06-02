@@ -1,4 +1,5 @@
 import ollama
+import json
 
 def ask_llm(context: str, question: str):
 
@@ -33,3 +34,59 @@ Answer:
 
     return response["message"]["content"]
 
+
+def extract_structured_resume(text: str):
+
+    prompt = f"""
+Extract structured data from this resume.
+
+Return ONLY valid JSON.
+
+Format:
+
+{{
+  "name": "",
+  "skills": [],
+  "projects": [],
+  "experience": [],
+  "hackathons": [],
+  "education": []
+}}
+
+Resume:
+
+{text}
+"""
+
+    response = ollama.chat(
+        model="gemma:2b",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+    )
+
+    result = response["message"]["content"]
+
+    print("\n===== RAW LLM OUTPUT =====")
+    print(result)
+    print("=========================\n")
+
+    try:
+        return json.loads(result)
+
+    except Exception as e:
+
+        print("JSON ERROR:", e)
+
+        return {
+            "name": "",
+            "skills": [],
+            "projects": [],
+            "experience": [],
+            "hackathons": [],
+            "education": []
+        }
+            
