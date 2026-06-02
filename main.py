@@ -280,16 +280,8 @@ def search(query: str):
 
             results = (
                 db.query(PDFChunk)
-                .filter(
-                    PDFChunk.candidate_name
-                    == matched_name
-                )
-                .order_by(
-                    PDFChunk.embedding.cosine_distance(
-                        query_embedding
-                    )
-                )
-                .limit(10)
+                .filter(PDFChunk.candidate_name == matched_name)
+                .order_by(PDFChunk.chunk_index.asc())
                 .all()
             )
 
