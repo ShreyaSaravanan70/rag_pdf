@@ -107,91 +107,6 @@ def upload_pdf(
     finally:
         db.close()
 
-# @app.get("/search")
-# def search(query: str):
-
-#     db = SessionLocal()
-
-#     try:
-#         # 1. Get embedding
-#         query_embedding = get_embedding(query)
-
-#         # 2. Run query safely using SQLAlchemy
-#         results = db.execute(
-#             text("""
-#                 WITH chunk_scores AS (
-#                     SELECT
-#                         file_name,
-#                         chunk_text,
-#                         embedding <=> CAST(:embedding AS vector) AS distance
-#                     FROM pdf_chunks
-#                 ),
-
-#                 ranked_chunks AS (
-#                     SELECT
-#                         file_name,
-#                         chunk_text,
-#                         distance,
-#                         ROW_NUMBER() OVER (
-#                             PARTITION BY file_name
-#                             ORDER BY distance ASC
-#                         )   AS rn
-#                     FROM chunk_scores
-#                 ),
-
-#                 top_files AS (
-#                     SELECT
-#                         file_name,
-#                         MIN(distance) AS best_distance
-#                     FROM chunk_scores
-#                     GROUP BY file_name
-#                     ORDER BY best_distance ASC
-#                     LIMIT :limit_docs
-#             )
-
-#                 SELECT
-#                     rc.file_name,
-#                     rc.chunk_text,
-#                     rc.distance
-#                 FROM ranked_chunks rc
-#                 JOIN top_files tf
-#                     ON rc.file_name = tf.file_name
-#                 WHERE rc.rn <= :top_chunks_per_doc
-#                 ORDER BY 
-#                     tf.best_distance ASC,
-#                     rc.file_name,
-#                     rc.distance ASC
-#             """),
-#             {
-#                 "embedding": str(query_embedding),
-#                 "limit_docs": 5,
-#                 "top_chunks_per_doc": 3
-#             }
-#         ).fetchall()
-
-#         if not results:
-#             return {"message": "No matching documents found"}
-
-#         # 3. Build context
-#         context = "\n\n".join(
-#             f"FILE: {r.file_name}\n{r.chunk_text}"
-#             for r in results
-#         )
-
-#         # 4. LLM call
-#         answer = ask_llm(context=context, question=query)
-
-#         return {
-#             "answer": answer,
-#             "matched_files": list(set(r.file_name for r in results))
-#         }
-
-#     except Exception as e:
-#         print("ERROR:", e)   # 🔥 IMPORTANT DEBUG LINE
-#         raise e
-
-#     finally:
-#         db.close()
 @app.get("/search")
 def search(query: str):
 
@@ -201,9 +116,7 @@ def search(query: str):
 
         query_lower = query.lower()
 
-        # =====================================
         # SKILL LOOKUP
-        # =====================================
 
         if query_lower.startswith("who knows"):
 
@@ -236,9 +149,7 @@ def search(query: str):
                 "people": matching_people
             }
 
-        # =====================================
         # VECTOR SEARCH
-        # =====================================
 
         start = time.time()
 
@@ -249,9 +160,7 @@ def search(query: str):
             time.time() - start
         )
 
-        # =====================================
         # FIND PERSON NAME IN QUERY
-        # =====================================
 
         resumes = db.query(Resume).all()
 
@@ -267,9 +176,7 @@ def search(query: str):
                 matched_name = resume.name
                 break
 
-        # =====================================
         # PERSON-SPECIFIC SEARCH
-        # =====================================
 
         if matched_name:
 
@@ -285,9 +192,7 @@ def search(query: str):
                 .all()
             )
 
-        # =====================================
         # GLOBAL SEARCH
-        # =====================================
 
         else:
 
@@ -309,9 +214,7 @@ def search(query: str):
                 "No matching documents found"
             }
 
-        # =====================================
         # BUILD CONTEXT
-        # =====================================
 
         context = "\n\n".join(
             [
@@ -338,9 +241,7 @@ SECTION: {row.section}
             "\n===================\n"
         )
 
-        # =====================================
         # LLM
-        # =====================================
 
         answer = ask_llm(
             context=context,

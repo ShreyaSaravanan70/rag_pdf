@@ -4,14 +4,27 @@ import json
 def ask_llm(context: str, question: str):
 
     prompt = f"""
-You are a PDF assistant.
+You are a STRICT extraction engine.
 
-Use ONLY the information present in the context.
+You are NOT allowed to explain or summarize.
 
-If the answer exists in the context, answer clearly.
+RULES:
+- ONLY use information from context
+- DO NOT summarize
+- DO NOT rephrase
+- DO NOT omit items
 
-If the answer is not present, say:
-"Information not found in the uploaded documents."
+OUTPUT RULE:
+Return ONLY valid JSON in this format:
+
+{{
+  "answer": "exact text OR full list from context"
+}}
+
+If multiple values exist:
+{{
+  "answer": ["value1", "value2", "value3"]
+}}
 
 Context:
 {context}
