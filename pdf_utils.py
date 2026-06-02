@@ -11,3 +11,5 @@ def extract_text_from_pdf(pdf_path):
         text += page.get_text()
 
     return text
+
+

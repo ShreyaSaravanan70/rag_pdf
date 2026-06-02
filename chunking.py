@@ -12,3 +12,4 @@ def split_by_chars(text, chunk_size=1000, overlap=200):
         start = end - overlap  # overlap helps preserve context
 
     return chunks
+
