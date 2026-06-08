@@ -1,30 +1,18 @@
-import ollama
+from groq import Groq
 import json
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 def ask_llm(context: str, question: str):
 
-    prompt = f"""
-You are a STRICT extraction engine.
+    prompt = f"""You are a resume data extraction assistant.
 
-You are NOT allowed to explain or summarize.
-
-RULES:
-- ONLY use information from context
-- DO NOT summarize
-- DO NOT rephrase
-- DO NOT omit items
-
-OUTPUT RULE:
-Return ONLY valid JSON in this format:
-
-{{
-  "answer": "exact text OR full list from context"
-}}
-
-If multiple values exist:
-{{
-  "answer": ["value1", "value2", "value3"]
-}}
+Read the resume context below and answer the question asked.
+Extract all relevant information from the context and return it.
 
 Context:
 {context}
@@ -32,11 +20,17 @@ Context:
 Question:
 {question}
 
-Answer:
+Return your answer in this JSON format only:
+{{"answer": "your answer here"}}
+
+If the answer is a list of items, return:
+{{"answer": ["item1", "item2", "item3"]}}
+
+Do not say the context does not contain information. Extract whatever is relevant.
 """
 
-    response = ollama.chat(
-        model="gemma:2b",
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
         messages=[
             {
                 "role": "user",
@@ -45,34 +39,22 @@ Answer:
         ]
     )
 
-    return response["message"]["content"]
+    return response.choices[0].message.content
 
-
-def extract_structured_resume(text: str):
+        
+def extract_name(text):
 
     prompt = f"""
-Extract structured data from this resume.
+Extract only the candidate's full name from this resume.
 
-Return ONLY valid JSON.
-
-Format:
-
-{{
-  "name": "",
-  "skills": [],
-  "projects": [],
-  "experience": [],
-  "hackathons": [],
-  "education": []
-}}
+Return only the name, nothing else.
 
 Resume:
-
 {text}
 """
 
-    response = ollama.chat(
-        model="gemma:2b",
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
         messages=[
             {
                 "role": "user",
@@ -81,25 +63,4 @@ Resume:
         ]
     )
 
-    result = response["message"]["content"]
-
-    print("\n===== RAW LLM OUTPUT =====")
-    print(result)
-    print("=========================\n")
-
-    try:
-        return json.loads(result)
-
-    except Exception as e:
-
-        print("JSON ERROR:", e)
-
-        return {
-            "name": "",
-            "skills": [],
-            "projects": [],
-            "experience": [],
-            "hackathons": [],
-            "education": []
-        }
-            
+    return response.choices[0].message.content.strip()

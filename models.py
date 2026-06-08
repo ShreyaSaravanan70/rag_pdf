@@ -10,7 +10,6 @@ class PDFChunk(Base):
     id = Column(Integer, primary_key=True)
     file_name = Column(String)
     candidate_name = Column(String)
-    section=Column(String)
     chunk_text = Column(Text)
     embedding = Column(Vector(384))
 
