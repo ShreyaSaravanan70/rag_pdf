@@ -1,0 +1,223 @@
+/* ============================================================
+   ResumeIQ — style.css  (high-specificity override edition)
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@300;400;500;600&display=swap');
+
+:root {
+  --soft-linen:       #e3e4db;
+  --silver:           #cdcdcd;
+  --lilac-ash:        #aea4bf;
+  --vintage-lavender: #8f6593;
+  --midnight-violet:  #3b252c;
+  --radius:           10px;
+  --btn-h:            42px;
+  --btn-w:            160px;
+  --font-display:     'DM Serif Display', Georgia, serif;
+  --font-body:        'Inter', system-ui, sans-serif;
+}
+
+/* ----Toolbar of Streamlit */
+.stApp header[data-testid="stHeader"] {
+  background-color: var(--soft-linen) !important;
+}
+
+/* ── Background ───────────────────────────────────────────── */
+.stApp {
+  background-color: var(--soft-linen) !important;
+  font-family: var(--font-body) !important;
+  color: var(--midnight-violet) !important;
+}
+
+.stApp > header {
+  background-color: transparent !important;
+}
+
+/* ── Main content area ────────────────────────────────────── */
+.stApp .main .block-container {
+  background-color: var(--soft-linen) !important;
+  padding-top:    2.5rem !important;
+  padding-bottom: 3rem !important;
+  max-width:      900px !important;
+  color: var(--midnight-violet) !important;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────── */
+.stApp [data-testid="stSidebar"] {
+  background-color: var(--midnight-violet) !important;
+}
+
+
+.stApp [data-testid="stSidebar"] > div:first-child {
+  background-color: var(--midnight-violet) !important;
+}
+
+.stApp [data-testid="stSidebar"] * {
+  color: var(--soft-linen) !important;
+  font-family: var(--font-body) !important;
+}
+
+.stApp [data-testid="stSidebar"] h1 {
+  font-family: var(--font-display) !important;
+  font-size: 1.6rem !important;
+  color: var(--lilac-ash) !important;
+  letter-spacing: 0.04em;
+}
+
+.stApp [data-testid="stSidebar"] hr {
+  border-color: rgba(174, 164, 191, 0.25) !important;
+}
+
+
+/* ── Buttons — unified size ───────────────────────────────── */
+.stApp .stButton > button {
+  display:         inline-flex !important;
+  align-items:     center !important;
+  justify-content: center !important;
+  width:           var(--btn-w) !important;
+  min-width:       var(--btn-w) !important;
+  height:          var(--btn-h) !important;
+  padding:         0 1.25rem !important;
+  border-radius:   var(--radius) !important;
+  font-family:     var(--font-body) !important;
+  font-size:       0.875rem !important;
+  font-weight:     500 !important;
+  letter-spacing:  0.03em !important;
+  cursor:          pointer !important;
+  transition:      all 0.2s ease !important;
+  /* default: ghost style (sidebar) */
+  background:      transparent !important;
+  color:           var(--vintage-lavender) !important;
+  border:          1px solid var(--lilac-ash) !important;
+  box-shadow:      none !important;
+}
+
+.stApp .stButton > button:hover {
+  background:   rgba(143, 101, 147, 0.18) !important;
+  color:        var(--midnight-violet) !important;
+  border-color: var(--vintage-lavender) !important;
+  box-shadow:   0 0 0 2px rgba(143, 101, 147, 0.2) !important;
+}
+
+.stApp .stButton > button:active {
+  background: rgba(143, 101, 147, 0.35) !important;
+}
+
+/* Main content buttons — solid fill */
+.stApp .main .stButton > button {
+  background:  var(--vintage-lavender) !important;
+  color:       var(--soft-linen) !important;
+  border:      1px solid transparent !important;
+  box-shadow:  0 2px 8px rgba(59, 37, 44, 0.2) !important;
+}
+
+.stApp .main .stButton > button:hover {
+  background:   var(--midnight-violet) !important;
+  border-color: var(--lilac-ash) !important;
+  box-shadow:   0 4px 16px rgba(59, 37, 44, 0.3) !important;
+}
+
+/* ── Headings ─────────────────────────────────────────────── */
+.stApp h1 {
+  font-family: var(--font-display) !important;
+  font-size:   2.4rem !important;
+  color:       var(--midnight-violet) !important;
+  letter-spacing: -0.01em;
+}
+
+.stApp h2 {
+  font-family: var(--font-display) !important;
+  font-size:   1.7rem !important;
+  color:       var(--midnight-violet) !important;
+}
+
+.stApp h3 {
+  font-family: var(--font-display) !important;
+  font-size:   1.2rem !important;
+  color:       var(--vintage-lavender) !important;
+}
+
+/* ── Text Input ───────────────────────────────────────────── */
+.stApp .stTextInput input {
+  background:    rgba(255,255,255,0.6) !important;
+  border:        1.5px solid var(--silver) !important;
+  border-radius: var(--radius) !important;
+  color:         var(--midnight-violet) !important;
+  font-family:   var(--font-body) !important;
+  font-size:     0.9rem !important;
+  padding:       0.6rem 1rem !important;
+  transition:    border-color 0.2s, box-shadow 0.2s !important;
+}
+
+.stApp .stTextInput input:focus {
+  border-color: var(--vintage-lavender) !important;
+  box-shadow:   0 0 0 3px rgba(143,101,147,0.18) !important;
+  outline:      none !important;
+}
+
+/* ── File Uploader ────────────────────────────────────────── */
+.stApp [data-testid="stFileUploader"] {
+  background:    rgba(205,205,205,0.2) !important;
+  border:        1.5px dashed var(--lilac-ash) !important;
+  border-radius: var(--radius) !important;
+  padding:       1.5rem !important;
+}
+
+/* ── Alerts ───────────────────────────────────────────────── */
+.stApp .stSuccess,
+.stApp [data-baseweb="notification"] {
+  background:    rgba(143,101,147,0.1) !important;
+  border-left:   3px solid var(--vintage-lavender) !important;
+  border-radius: var(--radius) !important;
+  color:         var(--midnight-violet) !important;
+}
+
+.stApp .stError {
+  background:    rgba(59,37,44,0.08) !important;
+  border-left:   3px solid var(--midnight-violet) !important;
+  border-radius: var(--radius) !important;
+}
+
+/* ── JSON ─────────────────────────────────────────────────── */
+.stApp .stJson {
+  background:    rgba(205,205,205,0.3) !important;
+  border-radius: var(--radius) !important;
+  font-size:     0.82rem !important;
+}
+
+/* ── Subheaders ───────────────────────────────────────────── */
+.stApp [data-testid="stMarkdownContainer"] h3 {
+  color:          var(--vintage-lavender) !important;
+  font-family:    var(--font-display) !important;
+  border-bottom:  1px solid rgba(174,164,191,0.3);
+  padding-bottom: 0.35rem;
+  margin-bottom:  0.75rem;
+}
+
+/* ── List items ───────────────────────────────────────────── */
+.stApp [data-testid="stMarkdownContainer"] li {
+  padding:      0.3rem 0 !important;
+  border-bottom: 1px solid rgba(205,205,205,0.5);
+  list-style:   none !important;
+  color:        var(--midnight-violet) !important;
+}
+
+.stApp [data-testid="stMarkdownContainer"] li::before {
+  content:      "›";
+  color:        var(--vintage-lavender);
+  margin-right: 0.5rem;
+  font-weight:  bold;
+}
+
+/* ── Dividers ─────────────────────────────────────────────── */
+.stApp hr {
+  border:     none !important;
+  border-top: 1px solid var(--silver) !important;
+  opacity:    0.5;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 6px; }
+::-webkit-scrollbar-track { background: var(--soft-linen); }
+::-webkit-scrollbar-thumb { background: var(--lilac-ash); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--vintage-lavender); }

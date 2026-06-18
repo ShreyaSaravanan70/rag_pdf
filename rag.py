@@ -39,15 +39,36 @@ Do not say the context does not contain information. Extract whatever is relevan
         ]
     )
 
-    return response.choices[0].message.content
+    content = response.choices[0].message.content
+
+    return json.loads(content)
 
         
-def extract_name(text):
+
+def extract_structured_resume(text):
 
     prompt = f"""
-Extract only the candidate's full name from this resume.
+Extract the following information from the resume.
 
-Return only the name, nothing else.
+Return ONLY valid JSON.
+
+Format:
+
+{{
+    "name": "",
+    "skills": [],
+    "projects": [],
+    "experience": [],
+    "hackathons": [],
+    "education": []
+}}
+
+Rules:
+- Return only JSON.
+- No explanations.
+- No markdown.
+- If a field is missing, use an empty string or empty list.
+- Extract all available items.
 
 Resume:
 {text}
@@ -63,4 +84,16 @@ Resume:
         ]
     )
 
-    return response.choices[0].message.content.strip()
+    content = response.choices[0].message.content.strip()
+
+    try:
+        return json.loads(content)
+    except Exception:
+        return {
+            "name": "",
+            "skills": [],
+            "projects": [],
+            "experience": [],
+            "hackathons": [],
+            "education": []
+        }

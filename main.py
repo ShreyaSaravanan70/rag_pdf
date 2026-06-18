@@ -7,14 +7,15 @@ from fastapi import FastAPI, UploadFile, File, Request, HTTPException
 from database import Base, engine
 from chunking import  split_by_words
 from sqlalchemy import text
-from rag import ask_llm, extract_name
-
+from rag import ask_llm, extract_structured_resume
+import difflib
 import chunking
 import models, traceback
 import shutil
 import time
 import multipart
 import os
+import re
 
 app=FastAPI(title="This is a PDF Rag Project")
 
@@ -46,25 +47,25 @@ def upload_pdf(
             file_path
         )
 
-        # # Extract structured resume data
-        # structured = extract_structured_resume(
-        #     text
-        # )
 
-        # # Save Resume table row
-        # resume_obj = Resume(
-        #     file_name=file.filename,
-        #     name=structured.get("name"),
-        #     skills=structured.get("skills", []),
-        #     projects=structured.get("projects", []),
-        #     experience=structured.get("experience", []),
-        #     hackathons=structured.get("hackathons", []),
-        #     education=structured.get("education", [])
-        # )
+        # Extract structured resume data
+        structured = extract_structured_resume(text)
 
-        # db.add(resume_obj)
+        candidate_name = structured.get("name", "").strip()
 
-        candidate_name = extract_name(text).lower()
+        # Save Resume table row
+        resume_obj = Resume(
+            file_name=file.filename,
+            name=candidate_name,
+            skills=structured.get("skills", []),
+            projects=structured.get("projects", []),
+            experience=structured.get("experience", []),
+            hackathons=structured.get("hackathons", []),
+            education=structured.get("education", [])
+        )
+
+        db.add(resume_obj)
+
 
         # word-based chunks
         chunks = split_by_words(
@@ -113,320 +114,6 @@ def upload_pdf(
     finally:
         db.close()
 
-# @app.get("/search")
-# def search(query: str):
-
-#     db = SessionLocal()
-
-#     try:
-
-#         query_lower = query.lower()
-
-#         # SKILL LOOKUP
-
-#         if query_lower.startswith("who knows"):
-
-#             skill = (
-#                 query_lower
-#                 .replace("who knows", "")
-#                 .replace("?", "")
-#                 .strip()
-#             )
-
-#             resumes = db.query(Resume).all()
-
-#             matching_people = []
-
-#             for resume in resumes:
-
-#                 skills = [
-#                     s.lower()
-#                     for s in (resume.skills or [])
-#                 ]
-
-#                 if any(skill in s for s in skills):
-
-#                     matching_people.append(
-#                         resume.name
-#                     )
-
-#             return {
-#                 "skill": skill,
-#                 "people": matching_people
-#             }
-
-#         # VECTOR SEARCH
-
-#         start = time.time()
-
-#         query_embedding = get_embedding(query)
-
-#         print(
-#             "Embedding time:",
-#             time.time() - start
-#         )
-
-#         # FIND PERSON NAME IN QUERY
-
-#         resumes = db.query(Resume).all()
-
-#         matched_name = None
-
-#         for resume in resumes:
-
-#             if (
-#                 resume.name
-#                 and resume.name.lower()
-#                 in query_lower
-#             ):
-#                 matched_name = resume.name
-#                 break
-
-#         # PERSON-SPECIFIC SEARCH
-
-#         if matched_name:
-
-#             print(
-#                 "Searching only for:",
-#                 matched_name
-#             )
-
-#             results = (
-#                 db.query(PDFChunk)
-#                 .filter(
-#                     PDFChunk.candidate_name == matched_name
-#                 )
-#                 .order_by(
-#                     PDFChunk.embedding.cosine_distance(
-#                         query_embedding
-#                     )
-#                 )
-#                 .limit(10)
-#                 .all()
-#             )
-
-#         # GLOBAL SEARCH
-
-#         else:
-
-#             results = (
-#                 db.query(PDFChunk)
-#                 .order_by(
-#                     PDFChunk.embedding.cosine_distance(
-#                         query_embedding
-#                     )
-#                 )
-#                 .limit(10)
-#                 .all()
-#             )
-
-#         if not results:
-
-#             return {
-#                 "message":
-#                 "No matching documents found"
-#             }
-
-#         # BUILD CONTEXT
-
-#         context = "\n\n".join(
-#             [
-#                 f"""
-# FILE: {row.file_name}
-
-# CANDIDATE: {row.candidate_name}
-
-# SECTION: {row.section}
-
-# {row.chunk_text}
-# """
-#                 for row in results
-#             ]
-#         )
-
-#         print(
-#             "\n===== CONTEXT ====="
-#         )
-
-#         print(context)
-
-#         print(
-#             "\n===================\n"
-#         )
-
-#         # LLM
-
-#         answer = ask_llm(
-#             context=context,
-#             question=query
-#         )
-
-#         return {
-#             "answer": answer,
-#             "matched_files": list(
-#                 set(
-#                     row.file_name
-#                     for row in results
-#                 )
-#             )
-#         }
-
-#     except Exception as e:
-
-#         import traceback
-
-#         print(
-#             traceback.format_exc()
-#         )
-
-#         raise HTTPException(
-#             status_code=500,
-#             detail=str(e)
-#         )
-
-#     finally:
-
-#         db.close()
-
-
-# app = FastAPI()
-
-
-# @app.get("/search")
-# def search(query: str):
-
-#     db = SessionLocal()
-
-#     try:
-#         query_lower = query.lower().strip()
-
-#         start = time.time()
-#         query_embedding = get_embedding(query)
-#         print("Embedding time:", time.time() - start)
-
-#         # ======================================================
-#         # STEP 1: CHECK IF QUERY CONTAINS A PERSON NAME
-#         # ======================================================
-#         candidate_names = (
-#             db.query(PDFChunk.candidate_name)
-#             .distinct()
-#             .all()
-#         )
-
-#         matched_name = None
-
-#         for row in candidate_names:
-#             if row[0] and row[0].lower() in query_lower:
-#                 matched_name = row[0]
-#                 break
-
-#         # ======================================================
-#         # STEP 2: PERSON-SPECIFIC SEARCH (MOST IMPORTANT)
-#         # ======================================================
-#         if matched_name:
-
-#             print("Searching resume for:", matched_name)
-
-#             results = (
-#                 db.query(PDFChunk)
-#                 .filter(PDFChunk.candidate_name == matched_name)
-#                 .all()
-#             )
-
-#             if not results:
-#                 return {
-#                     "message": "No data found for this candidate"
-#                 }
-
-#             # build full resume context
-#             context = "\n\n".join(
-#                 r.chunk_text for r in results
-#             )
-
-#             print("\n===== CONTEXT (PERSON) =====")
-#             print(context[:3000])
-#             print("============================\n")
-
-#             answer = ask_llm(
-#                 context=context,
-#                 question=query
-#             )
-
-#             return {
-#                 "answer": answer,
-#                 "matched_files": list(set(r.file_name for r in results)),
-#                 "matched_name": matched_name
-#             }
-
-#         # ======================================================
-#         # STEP 3: GENERAL SEARCH (NO PERSON NAME FOUND)
-#         # ======================================================
-#         top_chunks = (
-#             db.query(PDFChunk)
-#             .order_by(
-#                 PDFChunk.embedding.cosine_distance(query_embedding)
-#             )
-#             .limit(50)   # IMPORTANT: increased from 10
-#             .all()
-#         )
-
-#         if not top_chunks:
-#             return {
-#                 "message": "No matching documents found"
-#             }
-
-#         # pick best PDF based on chunk votes
-#         from collections import Counter
-
-#         pdf_counter = Counter(
-#             chunk.file_name
-#             for chunk in top_chunks
-#             if chunk.file_name
-#         )
-
-#         best_pdf = pdf_counter.most_common(1)[0][0]
-
-#         print("Best matching PDF:", best_pdf)
-
-#         # load full document of that PDF
-#         results = (
-#             db.query(PDFChunk)
-#             .filter(PDFChunk.file_name == best_pdf)
-#             .all()
-#         )
-
-#         if not results:
-#             return {
-#                 "message": "No matching documents found"
-#             }
-
-#         # build full context
-#         context = "\n\n".join(
-#             r.chunk_text for r in results
-#         )
-
-#         print("\n===== CONTEXT (GENERAL) =====")
-#         print(context[:3000])
-#         print("============================\n")
-
-#         answer = ask_llm(
-#             context=context,
-#             question=query
-#         )
-
-#         return {
-#             "answer": answer,
-#             "matched_files": list(set(r.file_name for r in results))
-#         }
-
-#     except Exception as e:
-#         import traceback
-#         print(traceback.format_exc())
-#         raise HTTPException(status_code=500, detail=str(e))
-
-#     finally:
-#         db.close()
-import difflib
 
 @app.get("/search")
 def search(query: str):
@@ -434,9 +121,33 @@ def search(query: str):
     db = SessionLocal()
 
     try:
+        # all_names = (
+        #     db.query(PDFChunk.candidate_name)
+        #     .distinct()
+        #     .all()
+        # )
+
+        # return {
+        #     "all_names": [n[0] for n in all_names]
+        # }
+    
         query_lower = query.lower().strip()
-        # Strip possessives before anything
-        query_clean = query_lower.replace("'s", "").replace("\u2019s", "")
+            # Remove possessive 's and curly apostrophe ’s
+        query_clean = (
+            query_lower
+            .replace("'s", "")
+            .replace("\u2019s", "")
+        )
+
+        # Remove all punctuation
+        query_clean = re.sub(
+            r"[^\w\s]",
+            " ",
+            query_clean
+        )
+
+        # Remove extra spaces
+        query_clean = " ".join(query_clean.split())
         query_embedding = get_embedding(query)
 
         STOPWORDS = {
@@ -530,8 +241,8 @@ def search(query: str):
             )
 
             return {
+                 "type": "person_query",
                 "answer": answer,
-                "matched_name": matched_name,
                 "matched_files": list(set(r.file_name for r in results))
             }
 
@@ -581,7 +292,7 @@ def search(query: str):
         )
 
         return {
-            "answer": answer,
+            "type": "skill_query",
             "matched_candidates": matched_candidates,
             "matched_files": list(set(r.file_name for r in relevant_chunks))
         }
